@@ -15,7 +15,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=True)
 
-    # Numeric(12, 2) thay vì Float để tránh sai số lẻ khi tính tiền
+    # Dùng Numeric để tránh sai số khi tính tiền.
     cost_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     selling_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
 

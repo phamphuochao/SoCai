@@ -1,8 +1,4 @@
-"""
-models/__init__.py
-Import tất cả model ở đây để khi ai đó import app.models, SQLAlchemy biết đủ
-mặt các bảng (cần thiết để Base.metadata.create_all() tạo đủ bảng).
-"""
+"""Import toàn bộ model để SQLAlchemy đăng ký đủ bảng trong metadata."""
 from app.core.database import Base  # noqa: F401
 
 from app.models.user import User  # noqa: F401

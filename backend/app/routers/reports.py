@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -11,12 +11,16 @@ from app.services import report_service
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
 
+def _utc_today():
+    return datetime.now(timezone.utc).date()
+
+
 def _default_range(date_from: datetime | None, date_to: datetime | None) -> tuple[datetime, datetime]:
     """Mặc định là hôm nay nếu không truyền khoảng thời gian."""
     if date_from is None:
-        date_from = datetime.combine(datetime.utcnow().date(), time.min)
+        date_from = datetime.combine(_utc_today(), time.min)
     if date_to is None:
-        date_to = datetime.combine(datetime.utcnow().date(), time.max)
+        date_to = datetime.combine(_utc_today(), time.max)
     return date_from, date_to
 
 
@@ -42,7 +46,7 @@ def top_products(
 @router.get("/revenue-by-day", response_model=list[RevenueByDayOut])
 def revenue_by_day(date_from: datetime | None = None, date_to: datetime | None = None, db: Session = Depends(get_db), _=Depends(get_current_user)):
     if date_from is None:
-        date_from = datetime.combine(datetime.utcnow().date() - timedelta(days=29), time.min)
+        date_from = datetime.combine(_utc_today() - timedelta(days=29), time.min)
     if date_to is None:
-        date_to = datetime.combine(datetime.utcnow().date(), time.max)
+        date_to = datetime.combine(_utc_today(), time.max)
     return report_service.get_revenue_by_day(db, date_from, date_to)

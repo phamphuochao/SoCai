@@ -18,7 +18,8 @@ copy .env.example .env      # Windows
 # cp .env.example .env      # macOS/Linux
 ```
 
-Có thể mở `.env` để đổi `SECRET_KEY`, tài khoản admin/staff mặc định nếu muốn.
+Mở `.env` để đổi `SECRET_KEY`, CORS hoặc tài khoản seed nếu cần. File này đã
+được Git ignore nên không bị đưa lên repository.
 
 ## 2. Tạo dữ liệu mẫu (chạy 1 lần, hoặc mỗi khi muốn reset)
 
@@ -29,7 +30,7 @@ python -m app.seed
 Lệnh này tạo:
 - Tài khoản `admin/admin123` (quyền admin) và `staff/staff123` (quyền nhân viên)
 - 4 danh mục: Đồ uống, Thực phẩm, Gia dụng, Văn phòng phẩm
-- 20 sản phẩm mẫu (có sẵn 2 sản phẩm tồn kho thấp để demo cảnh báo)
+- 30 sản phẩm mẫu (đủ 2 trang với page size 20, có 2 sản phẩm tồn kho thấp)
 
 Chạy lại an toàn — không tạo trùng nếu dữ liệu đã có.
 
@@ -39,8 +40,9 @@ Chạy lại an toàn — không tạo trùng nếu dữ liệu đã có.
 uvicorn app.main:app --reload
 ```
 
-Mở trình duyệt tại **http://127.0.0.1:8000/docs** để xem và thử toàn bộ API bằng Swagger UI
-(bấm nút "Authorize", đăng nhập bằng `/api/v1/auth/login` trước để lấy token).
+Mở trình duyệt tại **http://127.0.0.1:8000/docs** để xem và thử toàn bộ API bằng Swagger UI.
+Đăng nhập JSON bằng `/api/v1/auth/login`, sao chép `access_token`, sau đó bấm **Authorize**
+và nhập token vào HTTP Bearer form.
 
 Flutter sẽ gọi API tới `http://<ip-máy-host>:8000/api/v1/...`
 
@@ -50,9 +52,9 @@ Flutter sẽ gọi API tới `http://<ip-máy-host>:8000/api/v1/...`
 pytest tests/ -v
 ```
 
-9 test hiện có kiểm tra đúng các nghiệp vụ quan trọng nhất: không bán vượt tồn kho,
-rollback khi 1 sản phẩm trong đơn bị lỗi, tính tiền/giảm giá đúng, hủy hóa đơn hoàn kho,
-tồn kho không thể âm, và cảnh báo sản phẩm sắp hết hàng.
+14 test kiểm tra nghiệp vụ và API quan trọng: auth/role, OpenAPI Bearer, validation,
+không bán vượt tồn kho, rollback khi một sản phẩm lỗi, tính tiền/giảm giá, hủy hóa đơn
+hoàn kho đúng một lần, tồn kho không âm, lịch sử kho, expense và reports.
 
 ## Cấu trúc thư mục
 
@@ -84,12 +86,15 @@ tests/                        # pytest — test thuần Python, không cần ch�
 - [ ] `sync/sheets_sync.py` — đồng bộ lên Google Sheets (không phải MVP bắt buộc, làm sau cùng nếu còn thời gian — xem tài liệu ý tưởng mục 5)
 - [ ] Export CSV báo cáo (mục 5.7 kế hoạch — tính năng mở rộng)
 - [ ] Sao lưu database bằng copy file `retail.db` (mục 3.1 — chỉ cần 1 dòng lệnh copy, chưa cần code)
-- [ ] Thêm test cho `routers/` (integration test) nếu còn thời gian — hiện chỉ có test cho `services/`
-- [ ] Ghép nối với Flutter (base URL, interceptor gắn token vào header `Authorization: Bearer <token>`)
+- [x] Integration test cho các router quan trọng mà Flutter sử dụng
+- [x] Ghép nối Flutter Web bằng API client và Bearer interceptor
 
 ## Ghi chú quan trọng khi làm tiếp
 
 - **Mọi thay đổi tồn kho phải đi qua `inventory_service.apply_inventory_change()`** — không tự sửa `product.stock_quantity` ở nơi khác.
 - **Tiền luôn dùng `Decimal`**, không dùng `float`.
 - **Không xóa cứng sản phẩm/hóa đơn** — chỉ đổi trạng thái (`is_active=False`, `status="CANCELLED"`).
-- File `.env` không nên commit lên Git (chứa `SECRET_KEY` thật) — đã có `.env.example` làm mẫu, nhớ thêm `.env` vào `.gitignore`.
+- File `.env` không nên commit lên Git (chứa `SECRET_KEY` thật). Khi `ENVIRONMENT=production`,
+  ứng dụng từ chối khởi động nếu vẫn dùng secret mẫu.
+- SQLite được cấu hình foreign key, WAL và busy timeout 30 giây. Nó vẫn chỉ phù hợp tải ghi nhỏ;
+  stock/cancel dùng conditional update để giữ invariant trong phạm vi MVP.

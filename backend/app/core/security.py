@@ -1,12 +1,8 @@
-"""
-core/security.py
-"Chìa khóa và sổ điểm danh" — xử lý băm mật khẩu, tạo/giải mã JWT token,
-và các dependency dùng để bảo vệ endpoint (yêu cầu đăng nhập / yêu cầu quyền admin).
-"""
+"""Băm mật khẩu, tạo JWT và kiểm tra quyền truy cập API."""
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
@@ -17,8 +13,8 @@ from app.models.user import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# tokenUrl trỏ tới endpoint đăng nhập thật (dùng để Swagger UI biết đường gọi login)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+# Login nhận JSON; Swagger dùng HTTP Bearer để nhập access token.
+bearer_scheme = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
 
 
 def hash_password(plain_password: str) -> str:
@@ -37,17 +33,21 @@ def create_access_token(subject: str, extra_claims: dict | None = None) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    """
-    Dependency: giải mã token, tìm user tương ứng. Dùng trong router như:
-    current_user: User = Depends(get_current_user)
-    """
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """Giải mã access token và trả về tài khoản đang đăng nhập."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Không xác thực được người dùng",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise credentials_exception
+
     try:
+        token = credentials.credentials
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
@@ -62,7 +62,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency: chỉ cho phép admin đi tiếp, dùng cho các endpoint nhạy cảm."""
+    """Chỉ cho phép tài khoản có quyền admin truy cập endpoint."""
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ admin mới được thực hiện thao tác này")
     return current_user

@@ -12,11 +12,11 @@ class InventoryTransaction(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
 
-    # IMPORT | SALE | ADJUSTMENT | RETURN (mục 5.3 tài liệu kế hoạch)
+    # Các loại hợp lệ: IMPORT, SALE, ADJUSTMENT, RETURN.
     type: Mapped[str] = mapped_column(String(20), nullable=False)
-    quantity_change: Mapped[int] = mapped_column(Integer, nullable=False)  # dương = nhập/hoàn, âm = bán/giảm
+    quantity_change: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    reference_type: Mapped[str] = mapped_column(String(30), nullable=True)  # VD "SALE", "SALE_CANCEL", "MANUAL"
+    reference_type: Mapped[str] = mapped_column(String(30), nullable=True)
     reference_id: Mapped[int] = mapped_column(Integer, nullable=True)
 
     note: Mapped[str] = mapped_column(String(255), nullable=True)

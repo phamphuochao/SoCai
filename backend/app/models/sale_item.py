@@ -15,8 +15,7 @@ class SaleItem(Base):
 
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Giá được "chụp lại" (snapshot) tại thời điểm bán — không tham chiếu giá hiện tại
-    # của product, vì giá sản phẩm có thể đổi sau này (mục 8.1 tài liệu kế hoạch).
+    # Lưu giá tại thời điểm bán để hóa đơn cũ không đổi khi sản phẩm được cập nhật.
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     cost_price_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

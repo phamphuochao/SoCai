@@ -17,7 +17,7 @@ def test_khong_the_ban_vuot_ton_kho(db_session, test_staff):
             discount_amount=Decimal("0"), payment_method="CASH",
         )
     db_session.refresh(product)
-    assert product.stock_quantity == 5  # không đổi vì đã hủy toàn bộ giao dịch
+    assert product.stock_quantity == 5  # Giao dịch lỗi nên tồn kho giữ nguyên.
 
 
 def test_rollback_khi_1_item_loi(db_session, test_staff):
@@ -33,7 +33,7 @@ def test_rollback_khi_1_item_loi(db_session, test_staff):
             discount_amount=Decimal("0"), payment_method="CASH",
         )
     db_session.refresh(p1)
-    assert p1.stock_quantity == 10  # p1 hợp lệ nhưng vẫn KHÔNG bị trừ vì p2 lỗi
+    assert p1.stock_quantity == 10  # Toàn bộ đơn hàng rollback khi một sản phẩm lỗi.
 
 
 def test_ban_hang_thanh_cong_tru_dung_ton_kho_va_tinh_dung_tien(db_session, test_staff):
@@ -72,7 +72,7 @@ def test_huy_hoa_don_hoan_lai_ton_kho(db_session, test_staff):
 
     sale_service.cancel_sale(db_session, sale.id, actor_id=test_staff.id)
     db_session.refresh(product)
-    assert product.stock_quantity == 10  # hoàn lại đủ số lượng đã bán
+    assert product.stock_quantity == 10  # Hủy hóa đơn hoàn lại số lượng đã bán.
 
     db_session.refresh(sale)
     assert sale.status == "CANCELLED"

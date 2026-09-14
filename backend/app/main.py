@@ -1,29 +1,25 @@
-"""
-main.py — "Nút bấm khởi động cả văn phòng"
-File duy nhất bạn chạy để mở toàn bộ hệ thống: `uvicorn app.main:app --reload`
-"""
+"""Khởi tạo FastAPI app và đăng ký các router."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import Base, engine
-from app import models  # noqa: F401 — import để SQLAlchemy biết đủ các bảng
+from app.core.config import settings
+from app import models  # noqa: F401
 from app.routers import auth, categories, products, inventory, sales, expenses, reports
 
-# Tạo bảng nếu chưa có. Với đồ án, dùng create_all() là đủ (không cần Alembic).
+# Tạo schema khi ứng dụng khởi động nếu database chưa có bảng.
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Hệ thống quản lý doanh thu bán lẻ",
-    description="Backend FastAPI cho đồ án — xem chi tiết từng endpoint tại /docs",
+    description="API quản lý sản phẩm, bán hàng, tồn kho, chi phí và báo cáo.",
     version="1.0.0",
 )
 
-# Cho phép Flutter (web/desktop/mobile) gọi API từ origin khác trong lúc phát triển.
-# Với đồ án, mở rộng "*" là chấp nhận được; siết lại nếu triển khai thật.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials="*" not in settings.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

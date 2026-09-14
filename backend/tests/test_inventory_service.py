@@ -12,7 +12,7 @@ def test_ton_kho_khong_the_am(db_session, test_staff):
             db_session, product.id, quantity_change=-5, txn_type="ADJUSTMENT", created_by=test_staff.id
         )
     db_session.refresh(product)
-    assert product.stock_quantity == 3  # không đổi vì bị từ chối
+    assert product.stock_quantity == 3  # Tồn kho giữ nguyên khi giao dịch bị từ chối.
 
 
 def test_nhap_kho_tang_dung_so_luong(db_session, test_staff):
@@ -36,7 +36,7 @@ def test_san_pham_duoi_nguong_ton_toi_thieu_hien_thi_canh_bao(db_session):
 
     low = create_test_product(db_session, stock_quantity=2, name="Hàng sắp hết")
     update_product(db_session, low.id, ProductUpdate(min_stock_level=5))
-    create_test_product(db_session, stock_quantity=50, name="Hàng còn nhiều")  # đủ tồn, không cảnh báo
+    create_test_product(db_session, stock_quantity=50, name="Hàng còn nhiều")
 
     low_stock = inventory_service.list_low_stock_products(db_session)
     names = [p.name for p in low_stock]

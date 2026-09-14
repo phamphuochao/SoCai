@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProductCreate(BaseModel):
@@ -25,7 +25,7 @@ class ProductUpdate(BaseModel):
     category_id: int | None = None
     cost_price: Decimal | None = None
     selling_price: Decimal | None = None
-    min_stock_level: int | None = None
+    min_stock_level: int | None = Field(default=None, ge=0)
     is_active: bool | None = None
 
     @field_validator("cost_price", "selling_price")
@@ -37,6 +37,8 @@ class ProductUpdate(BaseModel):
 
 
 class ProductOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     sku: str
     name: str
@@ -46,6 +48,3 @@ class ProductOut(BaseModel):
     stock_quantity: int
     min_stock_level: int
     is_active: bool
-
-    class Config:
-        from_attributes = True

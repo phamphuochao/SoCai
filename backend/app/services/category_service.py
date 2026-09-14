@@ -27,6 +27,10 @@ def update_category(db: Session, category_id: int, data: CategoryUpdate) -> Cate
     category = db.query(Category).filter(Category.id == category_id).first()
     if category is None:
         raise BusinessError("Không tìm thấy danh mục")
+    if data.name is not None and data.name != category.name:
+        existing = db.query(Category).filter(Category.name == data.name, Category.id != category_id).first()
+        if existing:
+            raise BusinessError(f"Danh mục '{data.name}' đã tồn tại")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(category, field, value)
     db.commit()

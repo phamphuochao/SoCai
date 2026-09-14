@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -35,11 +35,20 @@ def list_sales(
     date_to: datetime | None = None,
     staff_id: int | None = None,
     status: str | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=200),
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
     return sale_service.list_sales(
-        db, invoice_code=invoice_code, date_from=date_from, date_to=date_to, staff_id=staff_id, status=status
+        db,
+        invoice_code=invoice_code,
+        date_from=date_from,
+        date_to=date_to,
+        staff_id=staff_id,
+        status=status,
+        offset=offset,
+        limit=limit,
     )
 
 

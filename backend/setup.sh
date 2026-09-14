@@ -14,7 +14,7 @@ pip install -r requirements.txt
 echo "=== Bước 3: Tạo file .env từ mẫu (nếu chưa có) ==="
 if [ ! -f .env ]; then
     cp .env.example .env
-    echo "Đã tạo file .env - có thể mở và chỉnh sửa nếu cần."
+    echo "Đã tạo file .env."
 else
     echo "File .env đã tồn tại, bỏ qua."
 fi

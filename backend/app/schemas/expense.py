@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ExpenseCreate(BaseModel):
@@ -12,6 +12,8 @@ class ExpenseCreate(BaseModel):
 
 
 class ExpenseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     expense_type: str
     amount: Decimal
@@ -19,6 +21,3 @@ class ExpenseOut(BaseModel):
     note: str | None
     created_by: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True

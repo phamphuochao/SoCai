@@ -1,25 +1,14 @@
-"""
-services/sale_service.py
-Phần "khó/quan trọng nhất" của hệ thống (theo tài liệu ý tưởng, mục 4.1).
-
-create_sale(): khi khách mua nhiều món, hệ thống phải
-  1) kiểm tra từng món còn đủ hàng không,
-  2) cộng tiền lại,
-  3) nếu có bất kỳ món nào thiếu hàng thì HỦY TOÀN BỘ, không bán "nửa vời".
-Toàn bộ nằm trong một khối try/except duy nhất: nếu lỗi ở bất kỳ bước nào,
-db.rollback() sẽ hủy hết các thay đổi đã add vào session (chưa commit), đảm bảo
-không có tình trạng "đã tạo hóa đơn nhưng chưa trừ kho" hoặc ngược lại (mục 8.2 kế hoạch).
-"""
-from datetime import date, datetime
+"""Tạo, hủy và tra cứu hóa đơn bán hàng."""
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import BusinessError
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
-from app.schemas.sale import SaleItemCreate
+from app.schemas.sale import PaymentMethod, SaleItemCreate
 from app.services.inventory_service import apply_inventory_change
 from app.services.product_service import get_product_by_id
 
@@ -49,10 +38,15 @@ def create_sale(
     if len(items) == 0:
         raise BusinessError("Đơn hàng phải có ít nhất 1 sản phẩm")
 
+    payment_method_value = payment_method.value if isinstance(payment_method, PaymentMethod) else payment_method
+    valid_payment_methods = {method.value for method in PaymentMethod}
+    if payment_method_value not in valid_payment_methods:
+        raise BusinessError("Phương thức thanh toán không hợp lệ")
+
     try:
         subtotal = Decimal("0")
         sale_items_data = []
-        stock_updates = []  # [(product_id, quantity), ...]
+        stock_updates = []
 
         for item in items:
             product = get_product_by_id(db, item.product_id, lock=True)
@@ -65,7 +59,8 @@ def create_sale(
                 raise BusinessError(f"'{product.name}' không đủ tồn kho (còn {product.stock_quantity})")
 
             unit_price = product.selling_price
-            cost_snapshot = product.cost_price  # snapshot giá tại thời điểm bán
+            # Lưu giá vốn tại thời điểm bán để báo cáo cũ không đổi khi sản phẩm đổi giá.
+            cost_snapshot = product.cost_price
             line_total = unit_price * item.quantity
 
             subtotal += line_total
@@ -93,12 +88,12 @@ def create_sale(
             subtotal=subtotal,
             discount_amount=discount_amount,
             total_amount=total_amount,
-            payment_method=payment_method,
+            payment_method=payment_method_value,
             status="COMPLETED",
-            sold_at=datetime.utcnow(),
+            sold_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(sale)
-        db.flush()  # để lấy sale.id trước khi commit
+        db.flush()  # Cần sale.id để tạo chi tiết hóa đơn và lịch sử kho.
 
         for item_data in sale_items_data:
             db.add(SaleItem(sale_id=sale.id, **item_data))
@@ -124,12 +119,18 @@ def create_sale(
 
 
 def cancel_sale(db: Session, sale_id: int, actor_id: int) -> Sale:
-    """Hủy hóa đơn + hoàn kho. Không xóa hóa đơn, chỉ đổi trạng thái để giữ lịch sử."""
+    """Hủy hóa đơn và hoàn tồn kho trong cùng transaction."""
     try:
         sale = db.query(Sale).options(joinedload(Sale.items)).filter(Sale.id == sale_id).first()
         if sale is None:
             raise BusinessError("Không tìm thấy hóa đơn")
-        if sale.status != "COMPLETED":
+        claim = db.execute(
+            update(Sale)
+            .where(Sale.id == sale_id, Sale.status == "COMPLETED")
+            .values(status="CANCELLED")
+            .execution_options(synchronize_session="fetch")
+        )
+        if claim.rowcount != 1:
             raise BusinessError("Chỉ hủy được hóa đơn đang ở trạng thái COMPLETED")
 
         for item in sale.items:
@@ -142,7 +143,6 @@ def cancel_sale(db: Session, sale_id: int, actor_id: int) -> Sale:
                 reference_type="SALE_CANCEL",
                 reference_id=sale.id,
             )
-        sale.status = "CANCELLED"
         db.commit()
         db.refresh(sale)
         return sale
@@ -163,8 +163,9 @@ def list_sales(
     date_to: datetime | None = None,
     staff_id: int | None = None,
     status: str | None = None,
+    offset: int = 0,
+    limit: int | None = None,
 ) -> list[Sale]:
-    """Tra cứu hóa đơn theo mã, ngày, nhân viên hoặc trạng thái (mục 5.7 kế hoạch)."""
     query = db.query(Sale).options(joinedload(Sale.items))
     if invoice_code:
         query = query.filter(Sale.invoice_code.ilike(f"%{invoice_code}%"))
@@ -176,4 +177,9 @@ def list_sales(
         query = query.filter(Sale.staff_id == staff_id)
     if status:
         query = query.filter(Sale.status == status)
-    return query.order_by(Sale.sold_at.desc()).all()
+    query = query.order_by(Sale.sold_at.desc(), Sale.id.desc())
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()

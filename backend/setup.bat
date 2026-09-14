@@ -18,7 +18,7 @@ pip install -r requirements.txt
 echo === Buoc 3: Tao file .env tu mau (neu chua co) ===
 if not exist .env (
     copy .env.example .env
-    echo Da tao file .env - co the mo va chinh sua neu can.
+    echo Da tao file .env.
 ) else (
     echo File .env da ton tai, bo qua.
 )

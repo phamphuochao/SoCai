@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -34,5 +34,16 @@ def low_stock_products(db: Session = Depends(get_db), _=Depends(get_current_user
 
 
 @router.get("/transactions", response_model=list[InventoryTransactionOut])
-def list_transactions(product_id: int | None = None, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return inventory_service.list_transactions(db, product_id=product_id)
+def list_transactions(
+    product_id: int | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    return inventory_service.list_transactions(
+        db,
+        product_id=product_id,
+        offset=offset,
+        limit=limit,
+    )

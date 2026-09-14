@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -18,5 +18,18 @@ def create_expense(payload: ExpenseCreate, db: Session = Depends(get_db), curren
 
 
 @router.get("", response_model=list[ExpenseOut])
-def list_expenses(date_from: date | None = None, date_to: date | None = None, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return expense_service.list_expenses(db, date_from=date_from, date_to=date_to)
+def list_expenses(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    return expense_service.list_expenses(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        offset=offset,
+        limit=limit,
+    )

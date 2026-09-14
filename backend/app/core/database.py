@@ -1,20 +1,27 @@
-"""
-core/database.py
-"Cầu nối tới kho hồ sơ thật" — mở kết nối tới file SQLite và quản lý phiên
-làm việc (session) với database. Mọi file khác cần dùng database phải đi qua
-đây (import engine / SessionLocal / Base / get_db), không tự tạo kết nối riêng.
-"""
-from sqlalchemy import create_engine
+"""Khởi tạo SQLAlchemy engine, session factory và database dependency."""
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 from app.core.config import settings
 
-# check_same_thread=False: cần thiết vì FastAPI có thể gọi từ nhiều thread khác nhau
-# khi dùng SQLite (mặc định SQLite chỉ cho phép 1 thread truy cập 1 connection).
+# FastAPI có thể dùng cùng SQLite connection từ nhiều worker thread.
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {},
+    connect_args={"check_same_thread": False, "timeout": 30} if is_sqlite else {},
 )
+
+
+if is_sqlite:
+    @event.listens_for(engine, "connect")
+    def configure_sqlite_connection(dbapi_connection, _connection_record):
+        """Cấu hình tính toàn vẹn dữ liệu và thời gian chờ ghi cho SQLite."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        if ":memory:" not in settings.DATABASE_URL:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -22,10 +29,7 @@ Base = declarative_base()
 
 
 def get_db():
-    """
-    Dependency cho FastAPI: mở 1 session cho mỗi request, tự đóng lại sau khi xong.
-    Dùng trong router như: db: Session = Depends(get_db)
-    """
+    """Cấp một database session cho mỗi request và đóng session khi hoàn tất."""
     db = SessionLocal()
     try:
         yield db

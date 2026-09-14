@@ -19,8 +19,8 @@ class Sale(Base):
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
 
-    payment_method: Mapped[str] = mapped_column(String(20), default="CASH")  # CASH | TRANSFER | CARD
-    # COMPLETED | CANCELLED — hóa đơn CANCELLED không tính vào bất kỳ báo cáo doanh thu nào
+    payment_method: Mapped[str] = mapped_column(String(20), default="CASH")
+    # Hóa đơn CANCELLED không được tính vào báo cáo doanh thu.
     status: Mapped[str] = mapped_column(String(20), default="COMPLETED")
 
     sold_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

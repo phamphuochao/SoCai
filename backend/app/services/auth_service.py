@@ -1,7 +1,4 @@
-"""
-services/auth_service.py
-Nghiệp vụ đăng nhập: kiểm tra username/password, tạo access token.
-"""
+"""Xác thực tài khoản và tạo access token."""
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessError

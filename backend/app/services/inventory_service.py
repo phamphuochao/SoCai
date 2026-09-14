@@ -1,16 +1,12 @@
-"""
-services/inventory_service.py
-Mọi thay đổi tồn kho (nhập hàng, bán hàng, điều chỉnh, hoàn hàng) đều phải đi qua
-MỘT hàm duy nhất: apply_inventory_change(). Không nơi nào khác trong code được
-phép tự ý sửa product.stock_quantity trực tiếp — nếu làm vậy sẽ mất dấu vết lịch sử
-trong bảng inventory_transactions.
-"""
+"""Cập nhật tồn kho và lưu lịch sử cho từng thay đổi."""
 from datetime import date
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessError
 from app.models.inventory_transaction import InventoryTransaction
+from app.models.product import Product
 from app.services.product_service import get_product_by_id
 
 
@@ -24,20 +20,23 @@ def apply_inventory_change(
     reference_id: int | None = None,
     note: str | None = None,
 ):
-    """
-    txn_type: "IMPORT" | "SALE" | "ADJUSTMENT" | "RETURN"
-    quantity_change: dương = tăng tồn kho, âm = giảm tồn kho.
-    Không cho phép tồn kho âm sau khi áp dụng thay đổi.
-    """
+    """Áp dụng thay đổi tồn kho và từ chối giao dịch làm số lượng bị âm."""
     product = get_product_by_id(db, product_id, lock=True)
     if product is None:
         raise BusinessError(f"Không tìm thấy sản phẩm id={product_id}")
 
-    new_stock = product.stock_quantity + quantity_change
-    if new_stock < 0:
+    statement = update(Product).where(Product.id == product_id)
+    if quantity_change < 0:
+        statement = statement.where(Product.stock_quantity >= -quantity_change)
+    result = db.execute(
+        statement.values(stock_quantity=Product.stock_quantity + quantity_change)
+        .execution_options(synchronize_session="fetch")
+    )
+    if result.rowcount != 1:
+        db.refresh(product)
         raise BusinessError(f"Tồn kho '{product.name}' không đủ (hiện có {product.stock_quantity})")
 
-    product.stock_quantity = new_stock
+    db.refresh(product)
     db.add(
         InventoryTransaction(
             product_id=product_id,
@@ -53,7 +52,7 @@ def apply_inventory_change(
 
 
 def import_stock(db: Session, product_id: int, quantity: int, created_by: int, note: str | None = None):
-    """Nhập kho thủ công — mục 5.3 kế hoạch."""
+    """Nhập thêm hàng vào kho."""
     if quantity <= 0:
         raise BusinessError("Số lượng nhập phải lớn hơn 0")
     product = apply_inventory_change(
@@ -66,7 +65,7 @@ def import_stock(db: Session, product_id: int, quantity: int, created_by: int, n
 
 
 def adjust_stock(db: Session, product_id: int, quantity_change: int, created_by: int, note: str | None = None):
-    """Điều chỉnh tồn kho thủ công (VD kiểm kê phát hiện lệch số liệu)."""
+    """Điều chỉnh tồn kho sau khi kiểm kê."""
     if quantity_change == 0:
         raise BusinessError("Số lượng điều chỉnh phải khác 0")
     product = apply_inventory_change(
@@ -88,6 +87,8 @@ def list_transactions(
     product_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    offset: int = 0,
+    limit: int | None = None,
 ):
     query = db.query(InventoryTransaction)
     if product_id is not None:
@@ -96,4 +97,12 @@ def list_transactions(
         query = query.filter(InventoryTransaction.created_at >= date_from)
     if date_to is not None:
         query = query.filter(InventoryTransaction.created_at <= date_to)
-    return query.order_by(InventoryTransaction.created_at.desc()).all()
+    query = query.order_by(
+        InventoryTransaction.created_at.desc(),
+        InventoryTransaction.id.desc(),
+    )
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()
